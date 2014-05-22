@@ -1,0 +1,45 @@
+<html>
+    <style>
+      body { margin:0; padding:0; }
+      #map { position:absolute; top:0; bottom:0; width:50%; float:left;}
+      #app { float:right;}
+    </style>
+    <body>
+        <div style="width: 100%; display: table;">
+            <div style="display: table-row">
+                <div id="app" style="width: 50%; display: table-cell;"> </div>
+                <div id="map" style="display: table-cell;"> </div>
+            </div>
+        </div>
+        <script src="http://fb.me/react-0.9.0.js"></script>
+        <script src="out/goog/base.js" type="text/javascript"></script>
+        <script src="hackakl_where_is_my_bus.js" type="text/javascript"></script>
+        <script type="text/javascript">goog.require("hackakl_where_is_my_bus.core");</script>
+        <script src='https://api.tiles.mapbox.com/mapbox.js/v1.6.3/mapbox.js'></script>
+        <link href='https://api.tiles.mapbox.com/mapbox.js/v1.6.3/mapbox.css' rel='stylesheet' />
+        <script type="text/javascript">
+            var map = L.mapbox.map('map', 'stuartmitchell.ia0n7ckk');
+            var markers = new Array();
+            var myIcon = L.icon({
+                iconUrl: 'http://www.stl.laval.qc.ca/wp-content/themes/stl/images/logo_bus.gif',
+                iconRetinaUrl: 'http://api.tiles.mapbox.com/mapbox.js/v1.6.2/images/marker-icon@2x.png',
+                shadowUrl: 'http://api.tiles.mapbox.com/mapbox.js/v1.6.2/images/marker-shadow.png',
+                shadowRetinaUrl: 'http://api.tiles.mapbox.com/mapbox.js/v1.6.2/images/marker-shadow@2x.png',
+                });
+
+            function set_marker(lat, lon, vehicle_id) {
+                var marker = L.marker([lat, lon], {icon: myIcon}).addTo(map);
+                marker.bindPopup(vehicle_id);
+                markers.push(marker)
+            };
+
+            function delete_markers() {
+                for (var count = 0; count < markers.length; count++) {
+                    marker = markers.pop();
+                    map.removeLayer(marker);
+                };
+            };
+
+        </script>
+    </body>
+</html>
