@@ -12,5 +12,4 @@ goog.addDependency("../reagent/impl/batching.js", ['reagent.impl.batching'], ['c
 goog.addDependency("../reagent/impl/component.js", ['reagent.impl.component'], ['cljs.core', 'reagent.debug', 'reagent.impl.util', 'reagent.impl.batching', 'reagent.ratom']);
 goog.addDependency("../reagent/impl/template.js", ['reagent.impl.template'], ['cljs.core', 'reagent.debug', 'clojure.string', 'reagent.impl.component', 'reagent.impl.util', 'reagent.impl.batching', 'reagent.ratom']);
 goog.addDependency("../reagent/core.js", ['reagent.core'], ['reagent.impl.template', 'cljs.core', 'reagent.impl.component', 'reagent.impl.util', 'reagent.impl.batching', 'reagent.ratom']);
-goog.addDependency("../reagent_test/core.js", ['reagent_test.core'], ['datascript', 'cljs.core', 'goog.net.Jsonp', 'reagent.core']);
 goog.addDependency("../hackakl_where_is_my_bus/core.js", ['hackakl_where_is_my_bus.core'], ['datascript', 'cljs.core', 'goog.net.Jsonp', 'reagent.core']);
