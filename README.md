@@ -12,7 +12,13 @@ The realtime feed comes from Auckland transport https://api.at.govt.nz/
 
 1. Install Leiningen http://leiningen.org/
 2. In the root dir build the project
+
 '''
 lein cljsbuild auto hackakl_where_is_my_bus
 '''
+
 3. Open index.html in the browser
+
+
+## Live
+Live at http://goo.gl/iioxPo
