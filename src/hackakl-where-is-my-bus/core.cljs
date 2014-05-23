@@ -52,20 +52,61 @@
 ;;; back to my code --stu
 
 ;;; Some non-DB state
-(def state (atom {:routes nil :route nil}))
+(def state (atom {:live-routes nil :short-routes {}
+                  :long-routes {} :route nil}))
+
+;;; Query to get positions corresponding to a route
+(defn q-positions [route_id]
+    (d/q '[:find ?p ?v
+      :in $ ?route_id
+      :where
+       [?e :position ?p]
+       [?e :route_id ?r]
+       [?e :vehicle_id ?v]
+       [(= ?r ?route_id)]
+       ] @conn route_id)
+    )
+
+;;; sets the map marker
+(defn set-map-marker
+  [[lat-long vehicle_id]]
+  (let [lat (:latitude lat-long)
+        lon (:longitude lat-long)]
+    (js/set_marker lat lon vehicle_id)
+    ))
+
+;;; sets the markers
+(defn set-markers [route]
+  (let [lat-longs (q-positions route)
+       [my-lat my-long] (:my-location @state)]
+     (js/delete_markers)
+     (dorun (map set-map-marker lat-longs))
+     (js/set_my_location my-lat my-long)
+     (js/fitBounds)
+     ))
 
 ;;; updates the choosen route
-(defn route-change [route]
-  (swap! state assoc-in [:route] route)
-  )
+(defn route-change
+  [route]
+    ((swap! state assoc-in [:route] route)
+    (set-markers route)
+    ))
+
 
 ;;; defines a reagent component that generates a select box of routes
 (defn routes-view
   []
-  [:div
-   [:h2 "Routes " (count(:routes @state))]
+  (let [short-routes (:short-routes @state)
+        long-routes (:long-routes @state)
+        live-routes (:live-routes @state)]
+  (if (not= (count short-routes) 0) [:div
+   [:h2 "Routes "]
    [:select {:on-change #(route-change (.. % -target -value)) }
-    (map(fn [r] [:option {:value r} [:span r]]) (:routes @state))]])
+    (map (fn [r] [:option {:value r}
+                  [:span (get short-routes r) " - " (get long-routes r)]])
+                        live-routes)]]
+    [:div])
+  ))
 
 ;;; Query to find trip_ids corresponding to a route
 (defn q-trip_ids [route_id]
@@ -79,17 +120,6 @@
      ] @conn route_id)
 )
 
-;;; Query to get positions corresponding to a route
-(defn q-positons [route_id]
-    (d/q '[:find ?p ?v
-      :in $ ?route_id
-      :where
-       [?e :position ?p]
-       [?e :route_id ?r]
-       [?e :vehicle_id ?v]
-       [(= ?r ?route_id)]
-       ] @conn route_id)
-    )
 
 ;;; Query to get route info from the id
 (defn q-route-info [route_id]
@@ -103,39 +133,28 @@
        ] @conn route_id)
     )
 
-;;; sets the map marker
-(defn set-map-marker
-  [[lat-long vehicle_id]]
-  (let [lat (:latitude lat-long)
-        lon (:longitude lat-long)]
-    (js/set_marker lat lon vehicle_id)
-    ))
-
 ;;; once a route is chosen shows the vechicles on the route and their lat-longs
 (defn lat-long-view
   []
   (let [route (:route @state)
         ;; I am not sure how to bind a query with a parameter
         trip_ids (q-trip_ids route)
-        lat-longs (q-positons route)
-        [lat-long _] (first (seq lat-longs))
+        lat-longs (q-positions route)
         [[short-name long-name]] (seq (q-route-info route))
-        [my-lat my-long] (:my-location @state)]
+        ]
       (if route
                  [:div
-                 [:h3 "Choosen Route " route]
+                 ;[:h3 "Choosen Route " route]
                  [:h3 "Short Name: " short-name]
                  [:h3 "Long Name: " long-name]
                  [:h4 "Trip IDs " (pr-str trip_ids)]
                  [:h4 "lat longs: " (pr-str lat-longs)
-                  (js/delete_markers)
-                  (dorun (map set-map-marker lat-longs))
-                  (js/set_my_location my-lat my-long)
-                  (js/fitBounds)
                   ]
                   [:ul
                    (map (fn [[p v_id]] [:li
-                                        [:span "vehicle id: " v_id " position " (pr-str p)]]) lat-longs)]]
+                                        [:span "vehicle id: " v_id
+                                         " position " (pr-str p)]])
+                        lat-longs)]]
                  [:div])
      ))
 
@@ -186,7 +205,7 @@
         items (:entity (:response data))
         vehicles (map :vehicle items)
         routes (set (map #(:route_id (:trip %)) vehicles))]
-    (swap! state assoc-in [:routes] routes)
+    (swap! state assoc-in [:live-routes] routes)
     ;; dorun is needed because map is lazy
     (dorun (map add-realtime vehicles))
     ))
@@ -209,6 +228,8 @@
     (d/transact! conn [{:db/id -1 :route_id route_id
                         :route_short_name route_short_name
                         :route_long_name route_long_name}])
+    (swap! state assoc-in [:short-routes route_id] route_short_name)
+    (swap! state assoc-in [:long-routes route_id] route_long_name)
     ))
 
 ;;; unpacks the response from the at route api
@@ -233,3 +254,18 @@
                        (fn [] (
                                swap! state assoc-in [:my-location] auckland-point))
                        )
+
+; Realtime loop for locations
+(defn update-realtime-location
+  []
+  (let [route (:route @state)
+        [trip_ids] (seq (q-trip_ids route))
+        ]
+    (when route
+      (set-markers route)
+      )
+    ;run every 30 secs
+    (js/setTimeout update-realtime-location 30000)
+    ))
+
+(update-realtime-location)
