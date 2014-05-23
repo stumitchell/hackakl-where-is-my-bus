@@ -42,7 +42,7 @@
             };
 
             function fitBounds() {
-                map.fitBounds(bus_group);
+                map.fitBounds(bus_group, { padding: [50, 50] });
             }
             function delete_markers() {
                 bus_group.clearLayers()

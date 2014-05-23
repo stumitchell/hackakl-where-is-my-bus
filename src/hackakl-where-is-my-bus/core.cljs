@@ -77,7 +77,7 @@
 
 ;;; sets the markers
 (defn set-markers [route]
-  (let [lat-longs (q-positions route)
+  (let [lat-longs (:lat-longs @state)
        [my-lat my-long] (:my-location @state)]
      (js/delete_markers)
      (dorun (map set-map-marker lat-longs))
@@ -89,6 +89,7 @@
 (defn route-change
   [route]
     ((swap! state assoc-in [:route] route)
+     (swap! state assoc-in [:lat-longs] (q-positions route))
     (set-markers route)
     ))
 
@@ -139,7 +140,7 @@
   (let [route (:route @state)
         ;; I am not sure how to bind a query with a parameter
         trip_ids (q-trip_ids route)
-        lat-longs (q-positions route)
+        lat-longs (:lat-longs @state)
         [[short-name long-name]] (seq (q-route-info route))
         ]
       (if route
@@ -176,15 +177,19 @@
 (defn retrieve-realtime-data
   [callback error-callback]
   (.send (goog.net.Jsonp. (str at_server "public/realtime/vehiclelocations") "callback")
-    (doto (js-obj) (aset "api_key" api_key) )
-    callback error-callback)
-  [callback error-callback trip_ids]
-  ;; Jsonp is how you work around cross-domain scripting errors
-  (.send (goog.net.Jsonp. (str at_server "public/realtime/vehiclelocations") "callback")
     (doto (js-obj)
-      (aset "api_key" api_key)
-      (aset "trip_ids" trip_ids) )
+      (aset "api_key" api_key) )
     callback error-callback)
+  )
+
+(defn q-vehicle-db-id
+  [vehicle_id]
+      (d/q '[:find ?e ?t
+      :in $ ?vehicle_id
+      :where
+       [?e :vehicle_id ?vehicle_id]
+       [?e :timestamp ?t]
+       ] @conn vehicle_id)
   )
 
 ;;; adds the information for each vehichle into the client-side db
@@ -193,21 +198,36 @@
         trip_id (:trip_id trip)
         route_id (:route_id trip)
         position (:position vehicle)
-        vehicle_id (:id (:vehicle vehicle))]
-    (d/transact! conn [{:db/id -1 :route_id route_id
-                        :trip_id trip_id :position position
-                        :vehicle_id vehicle_id}])
-    ))
+        timestamp (:timestamp vehicle)
+        vehicle_id (:id (:vehicle vehicle))
+        [[id old-timestamp]] (seq (q-vehicle-db-id vehicle_id))]
+    (if id ;there is already an entry
+      (d/transact! conn [{:db/id id
+                        :route_id route_id
+                        :trip_id trip_id
+                        :position position
+                        :vehicle_id vehicle_id
+                        :timestamp timestamp}])
+      (d/transact! conn [{:db/id -1
+                        :route_id route_id
+                        :trip_id trip_id
+                        :position position
+                        :vehicle_id vehicle_id
+                        :timestamp timestamp}])
+      )))
 
 ;;; unpacks the response from the at realtime api
 (defn set-realtime-info [json-obj]
   (let [data (js->clj json-obj :keywordize-keys true)
         items (:entity (:response data))
         vehicles (map :vehicle items)
-        routes (set (map #(:route_id (:trip %)) vehicles))]
+        routes (set (map #(:route_id (:trip %)) vehicles))
+        route (:route @state)]
     (swap! state assoc-in [:live-routes] routes)
     ;; dorun is needed because map is lazy
     (dorun (map add-realtime vehicles))
+    (when route
+      (swap! state assoc-in [:lat-longs] (q-positions route)))
     ))
 
 (retrieve-realtime-data set-realtime-info #(js/alert (str "error getting realtime data" %)))
@@ -215,8 +235,10 @@
 ;;; uses Jsonp to get data from the route feed
 (defn retrieve-route-data
   [callback error-callback]
-  (.send (goog.net.Jsonp. (str at_server "gtfs/routes") "callback")
-    (doto (js-obj) (aset "api_key" api_key) )
+   (.send (goog.net.Jsonp. (str at_server "gtfs/routes") "callback")
+    (doto (js-obj)
+      (aset "api_key" api_key)
+      )
     callback error-callback)
   )
 
@@ -250,9 +272,10 @@
     (def latitude (.-latitude js/position.coords))
     (swap! state assoc-in [:my-location] [latitude, longitude]))
 
-  (.getCurrentPosition js/navigator.geolocation geolocation
-                       (fn [] (
-                               swap! state assoc-in [:my-location] auckland-point))
+  (.getCurrentPosition js/navigator.geolocation
+                       geolocation
+                       (fn []
+                         (swap! state assoc-in [:my-location] auckland-point))
                        )
 
 ; Realtime loop for locations
@@ -265,6 +288,8 @@
       (set-markers route)
       )
     ;run every 30 secs
+    (retrieve-realtime-data set-realtime-info
+                              #(js/alert (str "error getting realtime data" %)))
     (js/setTimeout update-realtime-location 30000)
     ))
 
