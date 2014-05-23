@@ -88,9 +88,11 @@
 ;;; updates the choosen route
 (defn route-change
   [route]
-    ((swap! state assoc-in [:route] route)
+    (do
+     (swap! state assoc-in [:route] route)
      (swap! state assoc-in [:lat-longs] (q-positions route))
-    (set-markers route)
+     (swap! state assoc-in [:route-vehicles] (q-route-vehicles route))
+     (set-markers route)
     ))
 
 
@@ -101,7 +103,7 @@
         long-routes (:long-routes @state)
         live-routes (:live-routes @state)]
   (if (not= (count short-routes) 0) [:div
-   [:h2 "Routes "]
+   [:h2 "Choose a route "]
    [:select {:on-change #(route-change (.. % -target -value)) }
     (map (fn [r] [:option {:value r}
                   [:span (get short-routes r) " - " (get long-routes r)]])
@@ -109,15 +111,14 @@
     [:div])
   ))
 
-;;; Query to find trip_ids corresponding to a route
-(defn q-trip_ids [route_id]
-  (d/q '[:find ?t
+;;; Query to find vehicles corresponding to a route
+(defn q-route-vehicles [route_id]
+  (d/q '[:find ?v
     ;; the :in cause is how you supply a parameter into the query
     :in $ ?route_id
     :where
-     [?e :trip_id ?t]
-     [?e :route_id ?r]
-     [(= ?r ?route_id)]
+     [?e :vehicle_id ?v]
+     [?e :route_id ?route_id]
      ] @conn route_id)
 )
 
@@ -139,23 +140,11 @@
   []
   (let [route (:route @state)
         ;; I am not sure how to bind a query with a parameter
-        trip_ids (q-trip_ids route)
-        lat-longs (:lat-longs @state)
-        [[short-name long-name]] (seq (q-route-info route))
+        route-vehicles (:route-vehicles @state)
         ]
       (if route
                  [:div
-                 ;[:h3 "Choosen Route " route]
-                 [:h3 "Short Name: " short-name]
-                 [:h3 "Long Name: " long-name]
-                 [:h4 "Trip IDs " (pr-str trip_ids)]
-                 [:h4 "lat longs: " (pr-str lat-longs)
-                  ]
-                  [:ul
-                   (map (fn [[p v_id]] [:li
-                                        [:span "vehicle id: " v_id
-                                         " position " (pr-str p)]])
-                        lat-longs)]]
+                 [:h3 "We have information for " (count route-vehicles) " bus/es"]]
                  [:div])
      ))
 
@@ -227,8 +216,9 @@
     ;; dorun is needed because map is lazy
     (dorun (map add-realtime vehicles))
     (when route
-      (swap! state assoc-in [:lat-longs] (q-positions route)))
-    ))
+      (swap! state assoc-in [:lat-longs] (q-positions route))
+      (swap! state assoc-in [:route-vehicles] (q-route-vehicles route))
+      )))
 
 (retrieve-realtime-data set-realtime-info #(js/alert (str "error getting realtime data" %)))
 
@@ -282,7 +272,6 @@
 (defn update-realtime-location
   []
   (let [route (:route @state)
-        [trip_ids] (seq (q-trip_ids route))
         ]
     (when route
       (set-markers route)
