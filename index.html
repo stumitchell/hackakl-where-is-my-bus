@@ -19,25 +19,33 @@
         <link href='https://api.tiles.mapbox.com/mapbox.js/v1.6.3/mapbox.css' rel='stylesheet' />
         <script type="text/javascript">
             var map = L.mapbox.map('map', 'stuartmitchell.ia0n7ckk');
-            var markers = new Array();
-            var myIcon = L.icon({
-                iconUrl: 'http://www.stl.laval.qc.ca/wp-content/themes/stl/images/logo_bus.gif',
-                iconRetinaUrl: 'http://api.tiles.mapbox.com/mapbox.js/v1.6.2/images/marker-icon@2x.png',
-                shadowUrl: 'http://api.tiles.mapbox.com/mapbox.js/v1.6.2/images/marker-shadow.png',
-                shadowRetinaUrl: 'http://api.tiles.mapbox.com/mapbox.js/v1.6.2/images/marker-shadow@2x.png',
+            var busIcon = L.icon({
+                iconUrl: 'static/logo_bus.gif',
+                shadowUrl: 'static/marker-shadow.png',
                 });
+            var myIcon = L.icon({
+                iconUrl: 'static/marker-icon.png',
+                shadowUrl: 'static/marker-shadow.png',
+                });
+             var bus_group = L.featureGroup().addTo(map);
 
             function set_marker(lat, lon, vehicle_id) {
-                var marker = L.marker([lat, lon], {icon: myIcon}).addTo(map);
+                var marker = L.marker([lat, lon], {icon: busIcon}).addTo(bus_group);
                 marker.bindPopup(vehicle_id);
-                markers.push(marker)
             };
 
+
+            function set_my_location(lat, lon) {
+                var marker = L.marker([lat, lon], {icon: myIcon}).addTo(bus_group);
+                marker.bindPopup("My Location");
+                marker.openPopup();
+            };
+
+            function fitBounds() {
+                map.fitBounds(bus_group);
+            }
             function delete_markers() {
-                for (var count = 0; count < markers.length; count++) {
-                    marker = markers.pop();
-                    map.removeLayer(marker);
-                };
+                bus_group.clearLayers()
             };
 
         </script>

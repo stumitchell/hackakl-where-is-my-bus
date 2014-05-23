@@ -119,7 +119,8 @@
         trip_ids (q-trip_ids route)
         lat-longs (q-positons route)
         [lat-long _] (first (seq lat-longs))
-        [[short-name long-name]] (seq (q-route-info route))]
+        [[short-name long-name]] (seq (q-route-info route))
+        [my-lat my-long] (:my-location @state)]
       (if route
                  [:div
                  [:h3 "Choosen Route " route]
@@ -129,6 +130,8 @@
                  [:h4 "lat longs: " (pr-str lat-longs)
                   (js/delete_markers)
                   (dorun (map set-map-marker lat-longs))
+                  (js/set_my_location my-lat my-long)
+                  (js/fitBounds)
                   ]
                   [:ul
                    (map (fn [[p v_id]] [:li
@@ -217,3 +220,16 @@
     ))
 
 (retrieve-route-data set-route-info #(js/alert (str "error getting route data" %)))
+
+
+ ; Geolocation
+ (def auckland-point [-36.85462580128022, 174.75643157958984])
+  (defn geolocation [position]
+    (def longitude (.-longitude js/position.coords))
+    (def latitude (.-latitude js/position.coords))
+    (swap! state assoc-in [:my-location] [latitude, longitude]))
+
+  (.getCurrentPosition js/navigator.geolocation geolocation
+                       (fn [] (
+                               swap! state assoc-in [:my-location] auckland-point))
+                       )
