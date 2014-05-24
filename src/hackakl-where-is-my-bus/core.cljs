@@ -2,10 +2,12 @@
   (:require [reagent.core :as reagent :refer [atom]]
             [datascript :as d]
             [goog.net.Jsonp :as jsonp]
+            [cljs.reader :as reader]
            ))
 
 (def api_key "cc2c65c9-5213-404e-8dda-45d17c2dd817")
 (def at_server "https://api.at.govt.nz/v1/")
+(def opt_server "http://54.79.37.164:8080/otp-rest-servlet/ws/plan")
 
 ;;; not my code --stu
 (enable-console-print! )
@@ -88,8 +90,53 @@
      (js/delete_markers)
      (dorun (map set-map-marker lat-longs))
      (js/set_my_location my-lat my-long)
-     (js/fitBounds)
      ))
+
+;;; finds one trip id
+(defn q-find-one-trip-id
+  [route_id]
+  (first (d/q '[:find ?t
+      :in $ ?route_id
+      :where
+       [?e :trip_id ?t]
+       [?e :route_id ?route_id]
+       ] @conn route_id)
+         ))
+
+;;; uses Jsonp to get data from the shape info
+(defn retrieve-route-shape
+  [callback error-callback route]
+   (let [[trip_id] (q-find-one-trip-id route)]
+     (.send (goog.net.Jsonp. (str at_server "gtfs/shapes/tripId/" trip_id)
+                           "callback")
+    (doto (js-obj)
+      (aset "api_key" api_key)
+      )
+    callback error-callback))
+  )
+
+(defn clj->js
+  "Recursively transforms ClojureScript maps into Javascript objects,
+   other ClojureScript colls into JavaScript arrays, and ClojureScript
+   keywords into JavaScript strings."
+  [x]
+  (cond
+    (string? x) x
+    (keyword? x) (name x)
+    (map? x) (.-strobj (reduce (fn [m [k v]]
+               (assoc m (clj->js k) (clj->js v))) {} x))
+    (coll? x) (apply array (map clj->js x))
+    :else x))
+
+;;; unpacks the response from the at route api
+(defn set-route-shape [json-obj]
+  (let [data (js->clj json-obj :keywordize-keys true)
+        shape (:response data)]
+    ;; dorun is needed because map is lazy
+    (js/draw_route (clj->js
+                     (map #(vector (:shape_pt_lat %) (:shape_pt_lon %)) shape)))
+    (js/fitBounds)
+    ))
 
 ;;; updates the choosen route
 (defn route-change
@@ -99,6 +146,8 @@
      (swap! state assoc-in [:lat-longs] (q-positions route))
      (swap! state assoc-in [:route-vehicles] (q-route-vehicles route))
      (set-markers route)
+     (retrieve-route-shape set-route-shape
+                           #(js/alert "error getting route shape") route)
     ))
 
 
@@ -171,10 +220,53 @@
        [:div {:style {:text-align "center"}} [:span "X using GPS"] ])
      ])))
 
+;;; unpacks the response from the opt feed
+(defn set-otp-info [xml-obj]
+  (let [data (clojure.data/parse xml-obj :keywordize-keys true)]
+    (print data)
+    ))
+
+
+;;; uses Jsonp to get data from the opt feed
+(defn retrieve-opt-data
+  [callback error-callback]
+   (let [to-place (:lat-long (:destination @state))
+         from-place (:my-location @state)]
+     (do (print (doto (js-obj)
+      (aset "maxWalkDistance" 750)
+      (aset "mode" "TRANSIT,WALK")
+      (aset "fromPlace" from-place)
+      (aset "toPlace" to-place)))
+     (.send (goog.net.Jsonp. opt_server "callback")
+    (doto (js-obj)
+      (aset "maxWalkDistance" 750)
+      (aset "mode" "TRANSIT,WALK")
+      (aset "fromPlace" from-place)
+      (aset "toPlace" to-place))
+    callback error-callback)
+     )))
+
+;;; validates and processes the destination
+(defn process-destination
+  [destination]
+    (hash-map :lat-long
+              (cljs.reader/read-string
+                (str "[ " (:destination destination) " ]"))
+    ))
+
+;;; changes the destination
+(defn destination-change
+  [destination]
+  (do
+    (swap! state assoc-in [:destination]
+                           (process-destination destination))
+    ;(retrieve-opt-data set-otp-info #(js/alert "problem retreiving opt info"))
+    ))
+
 ;;; produces the where-am-i component
 (defn where-am-i-going-view
   []
-  (let [temp (atom {:destination "" :time "now"})]
+  (let [temp (atom {:destination "-36.8532289 174.7660285" :time "now"})]
    (fn []
     (let [clicked (:where-am-i-going-clicked @temp)]
       [:div
@@ -195,14 +287,11 @@
            [:span "Time: "]
            [:input {:type "text"
                     :value (:time @temp)
-                    :on-change #(swap! temp assoc-in [:time]
-                                       (.. % -target -value))}]]
+                    ;:on-change #(swap! temp assoc-in [:time]
+                    ;                   (.. % -target -value))
+                    }]]
           [:div {:style {:text-align "center"}}
-           [:button {:onClick
-                     (fn []
-                       (swap! state assoc-in [:destination]
-                           {:destination (:destination @temp)
-                            :time (:time @temp)}))}
+           [:button {:onClick (fn [] (destination-change @temp))}
        "Add Destination"]]]
       )]))))
 

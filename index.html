@@ -26,6 +26,7 @@
                 </div>
             </div>
         </div>
+
         <script src="http://fb.me/react-0.9.0.js"></script>
         <script src="out/goog/base.js" type="text/javascript"></script>
         <script src="hackakl_where_is_my_bus.js" type="text/javascript"></script>
@@ -35,8 +36,10 @@
         <script type="text/javascript">
             var map = L.mapbox.map('map', 'stuartmitchell.ia0n7ckk');
             var busIcon = L.icon({
-                iconUrl: 'static/logo_bus.gif',
+                iconUrl: 'static/bus-marker2.png',
                 shadowUrl: 'static/marker-shadow.png',
+                iconSize: [50, 50],
+                iconAnchor: [15, 45],
                 });
             var myIcon = L.icon({
                 iconUrl: 'static/marker-icon.png',
@@ -49,7 +52,6 @@
                 marker.bindPopup(vehicle_id);
             };
 
-
             function set_my_location(lat, lon) {
                 var marker = L.marker([lat, lon], {icon: myIcon}).addTo(bus_group);
                 marker.bindPopup("My Location");
@@ -57,10 +59,21 @@
             };
 
             function fitBounds() {
-                map.fitBounds(bus_group, { padding: [50, 50] });
+                map.fitBounds(route_group, { padding: [50, 50] });
             }
+
             function delete_markers() {
                 bus_group.clearLayers()
+            };
+
+            var route_group = L.featureGroup().addTo(map);
+            function draw_route(lat_longs) {
+                route_group.clearLayers()
+                var polyline = L.polyline([], {color: 'blue'}).addTo(route_group);
+                for (var i = 0; i < lat_longs.length; i++) {
+                    var p = new L.latLng(lat_longs[i]);
+                    polyline.addLatLng(p);
+                };
             };
 
         </script>
