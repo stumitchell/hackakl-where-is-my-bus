@@ -86,10 +86,10 @@
 ;;; sets the markers
 (defn set-markers [route]
   (let [lat-longs (:lat-longs @state)
-       [my-lat my-long] (:my-location @state)]
+       my-location (:my-location @state)]
      (js/delete_markers)
      (dorun (map set-map-marker lat-longs))
-     (js/set_my_location my-lat my-long)
+     (js/set_my_location (clj->js my-location))
      ))
 
 ;;; finds one trip id
@@ -107,26 +107,14 @@
 (defn retrieve-route-shape
   [callback error-callback route]
    (let [[trip_id] (q-find-one-trip-id route)]
-     (.send (goog.net.Jsonp. (str at_server "gtfs/shapes/tripId/" trip_id)
+     (when trip_id
+       (.send (goog.net.Jsonp. (str at_server "gtfs/shapes/tripId/" trip_id)
                            "callback")
-    (doto (js-obj)
-      (aset "api_key" api_key)
-      )
-    callback error-callback))
-  )
-
-(defn clj->js
-  "Recursively transforms ClojureScript maps into Javascript objects,
-   other ClojureScript colls into JavaScript arrays, and ClojureScript
-   keywords into JavaScript strings."
-  [x]
-  (cond
-    (string? x) x
-    (keyword? x) (name x)
-    (map? x) (.-strobj (reduce (fn [m [k v]]
-               (assoc m (clj->js k) (clj->js v))) {} x))
-    (coll? x) (apply array (map clj->js x))
-    :else x))
+              (doto (js-obj)
+                (aset "api_key" api_key)
+                )
+              callback error-callback)
+       )))
 
 ;;; unpacks the response from the at route api
 (defn set-route-shape [json-obj]
@@ -221,9 +209,12 @@
      ])))
 
 ;;; unpacks the response from the opt feed
-(defn set-otp-info [xml-obj]
-  (let [data (clojure.data/parse xml-obj :keywordize-keys true)]
-    (print data)
+(defn set-otp-info [json-obj]
+  (let [data (js->clj json-obj :keywordize-keys true)
+        itineraries (:itineraries (:plan data))
+        legs (map :legs itineraries)
+        routeIds (filter identity (flatten (map #(map :routeId %) legs)))]
+    (route-change (first routeIds))
     ))
 
 
@@ -232,11 +223,6 @@
   [callback error-callback]
    (let [to-place (:lat-long (:destination @state))
          from-place (:my-location @state)]
-     (do (print (doto (js-obj)
-      (aset "maxWalkDistance" 750)
-      (aset "mode" "TRANSIT,WALK")
-      (aset "fromPlace" from-place)
-      (aset "toPlace" to-place)))
      (.send (goog.net.Jsonp. opt_server "callback")
     (doto (js-obj)
       (aset "maxWalkDistance" 750)
@@ -244,7 +230,7 @@
       (aset "fromPlace" from-place)
       (aset "toPlace" to-place))
     callback error-callback)
-     )))
+     ))
 
 ;;; validates and processes the destination
 (defn process-destination
@@ -256,17 +242,20 @@
 
 ;;; changes the destination
 (defn destination-change
-  [destination]
-  (do
-    (swap! state assoc-in [:destination]
-                           (process-destination destination))
-    ;(retrieve-opt-data set-otp-info #(js/alert "problem retreiving opt info"))
+  [raw]
+  (let
+    [destination (process-destination raw)
+     my_location (:my-location @state)]
+    (swap! state assoc-in [:destination] destination)
+    (retrieve-opt-data set-otp-info #(js/alert "problem retreiving opt info"))
+    (js/set_my_destination (clj->js (:lat-long destination)))
+    (js/set_my_location (clj->js my_location))
     ))
 
 ;;; produces the where-am-i component
 (defn where-am-i-going-view
   []
-  (let [temp (atom {:destination "-36.8532289 174.7660285" :time "now"})]
+  (let [temp (atom {:destination "-36.9181789 174.7722221" :time "now"})]
    (fn []
     (let [clicked (:where-am-i-going-clicked @temp)]
       [:div

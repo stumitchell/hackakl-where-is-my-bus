@@ -4,7 +4,6 @@
 
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/clojurescript "0.0-2173"]
-                [org.clojure/data.xml "0.0.7"]
                 [datascript "0.1.3"]
                 [reagent "0.4.2"]
                 ]
