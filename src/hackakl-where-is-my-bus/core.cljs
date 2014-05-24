@@ -105,18 +105,19 @@
 ;;; defines a reagent component that generates a select box of routes
 (defn routes-view
   []
-  (let [short-routes (:short-routes @state)
-        long-routes (:long-routes @state)
-        live-routes (:live-routes @state)]
-  (if (not= (count short-routes) 0)
-    [:div
-     [:h2 "Choose a route "]
-     [:select {:on-change #(route-change (.. % -target -value)) }
-      (map (fn [r] [:option {:value r}
-                    [:span (get short-routes r) " - " (get long-routes r)]])
-                        live-routes)]]
-    [:div])
-  ))
+    (let [short-routes (:short-routes @state)
+          long-routes (:long-routes @state)
+          live-routes (:live-routes @state)]
+      (if (not= (count short-routes) 0)
+        [:div
+         [:h2 "Choose a route "]
+         [:select {:on-change #(route-change (.. % -target -value)) }
+          (map (fn [r] [:option {:value r}
+                        [:span (get short-routes r) " - "
+                         (get long-routes r)]])
+               live-routes)]]
+        [:div]
+        )))
 
 ;;; Query to find vehicles corresponding to a route
 (defn q-route-vehicles [route_id]
@@ -158,53 +159,52 @@
 ;;; produces the where-am-i component
 (defn where-am-i-view
   []
-  (let [clicked (:where-am-i-clicked @state)]
-  [:div
-   [:div {:style {:text-align "center"}}
-   [:img {:src "static/Where_am_i_ok.png"
+  (let [temp (atom {:clicked false})]
+  (fn []
+    [:div
+     [:div {:style {:text-align "center"}}
+      [:img {:src "static/Where_am_i_ok.png"
           :on-click  (fn []
-                       (swap! state assoc-in
-                              [:where-am-i-clicked] (not clicked)))}] ]
-  (when clicked
-      [:div {:style {:text-align "center"}} [:span "X using GPS"] ])
-      ]))
-
-;;;
-(defn convert-destination
-  [destination]
-  (swap! state assoc-in [:destination]
-         (read-str (str "[ " destination " ]")))
-  )
+                       (swap! temp assoc-in
+                              [:clicked] (not (:clicked @temp))))}] ]
+     (when (:clicked @temp)
+       [:div {:style {:text-align "center"}} [:span "X using GPS"] ])
+     ])))
 
 ;;; produces the where-am-i component
 (defn where-am-i-going-view
   []
-  (let [clicked (:where-am-i-going-clicked @state)]
-  [:div
-   [:div {:style {:text-align "center"}}
-   [:img {:src "static/Where_am_i_going.png"
-          :on-click  (fn []
-                       (swap! state assoc-in
-                              [:where-am-i-going-clicked] (not clicked)))}] ]
-  (when clicked
-      [:div [:div {:style {:text-align "center"}}
-       [:span "Destination: "][:input {:type "text"
-               :value nil
-               :on-change #(swap! state assoc-in
-                                  [:destination :lat-long] (.. % -target -value))}]]
-      [:div {:style {:text-align "center"}}
-       [:span "Time: "][:input {:type "text"
-               :value nil
-               :on-change #(swap! state assoc-in
-                                  [:destination :time] (.. % -target -value))}]]
-      ;[:div {:style {:text-align "center"}}
-      ;  [:button
-      ;  {:onClick (fn []
-      ;              (swap! state assoc-in [:destination] {:time (:time @temp)}))}
-      ; "Add Destination"]]
-      ]
-      )
-    ]))
+  (let [temp (atom {:destination "" :time "now"})]
+   (fn []
+    (let [clicked (:where-am-i-going-clicked @temp)]
+      [:div
+       [:div {:style {:text-align "center"}}
+        [:img {:src "static/Where_am_i_going.png"
+               :on-click  (fn []
+                            (swap! temp assoc-in
+                                   [:where-am-i-going-clicked] (not clicked)))}] ]
+       (when clicked
+         [:div [:div {:style {:text-align "center"}}
+                [:span "Destination: "]
+                [:input {:type "text"
+                         :value (:destination @temp)
+                         :on-change #(swap! temp assoc-in
+                                            [:destination]
+                                            (.. % -target -value))}]]
+          [:div {:style {:text-align "center"}}
+           [:span "Time: "]
+           [:input {:type "text"
+                    :value (:time @temp)
+                    :on-change #(swap! temp assoc-in [:time]
+                                       (.. % -target -value))}]]
+          [:div {:style {:text-align "center"}}
+           [:button {:onClick
+                     (fn []
+                       (swap! state assoc-in [:destination]
+                           {:destination (:destination @temp)
+                            :time (:time @temp)}))}
+       "Add Destination"]]]
+      )]))))
 
 ;;; debug information
 (defn debug-view []
