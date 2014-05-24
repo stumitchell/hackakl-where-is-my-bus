@@ -120,7 +120,6 @@
 (defn set-route-shape [json-obj]
   (let [data (js->clj json-obj :keywordize-keys true)
         shape (:response data)]
-    ;; dorun is needed because map is lazy
     (js/draw_route (clj->js
                      (map #(vector (:shape_pt_lat %) (:shape_pt_lon %)) shape)))
     (js/fitBounds)
@@ -133,9 +132,9 @@
      (swap! state assoc-in [:route] route)
      (swap! state assoc-in [:lat-longs] (q-positions route))
      (swap! state assoc-in [:route-vehicles] (q-route-vehicles route))
-     (set-markers route)
      (retrieve-route-shape set-route-shape
                            #(js/alert "error getting route shape") route)
+     (set-markers route)
     ))
 
 
@@ -399,6 +398,32 @@
 
 (retrieve-route-data set-route-info #(js/alert (str "error getting route data" %)))
 
+(defn retrieve-trip-data
+  [callback error-callback]
+   (.send (goog.net.Jsonp. (str at_server "gtfs/trips") "callback")
+    (doto (js-obj)
+      (aset "api_key" api_key)
+      )
+    callback error-callback)
+  )
+
+;;; adds the information for each vehichle into the client-side db
+(defn add-trip-info [route]
+  (let [route_id (:route_id route)
+        trip_id (:trip_id route)]
+    (d/transact! conn [{:db/id -1 :route_id route_id
+                        :trip_id trip_id}])
+    ))
+
+;;; unpacks the response from the at route api
+(defn set-trip-info [json-obj]
+  (let [data (js->clj json-obj :keywordize-keys true)
+        trips (:response data)]
+    ;; dorun is needed because map is lazy
+    (dorun (map add-trip-info trips))
+    ))
+
+(retrieve-trip-data set-trip-info #(js/alert (str "error getting trip data" %)))
 
  ; Geolocation
  (def auckland-point [-36.85462580128022, 174.75643157958984])
