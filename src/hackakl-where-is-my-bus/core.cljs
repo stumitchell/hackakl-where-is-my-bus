@@ -52,8 +52,11 @@
 ;;; back to my code --stu
 
 ;;; Some non-DB state
-(def state (atom {:live-routes nil :short-routes {}
-                  :long-routes {} :route nil}))
+(def state (atom {:live-routes nil
+                  :short-routes {}
+                  :long-routes {}
+                  :route nil
+                  :where-am-i-clicked false}))
 
 ;;; Query to get positions corresponding to a route
 (defn q-positions [route_id]
@@ -102,11 +105,12 @@
   (let [short-routes (:short-routes @state)
         long-routes (:long-routes @state)
         live-routes (:live-routes @state)]
-  (if (not= (count short-routes) 0) [:div
-   [:h2 "Choose a route "]
-   [:select {:on-change #(route-change (.. % -target -value)) }
-    (map (fn [r] [:option {:value r}
-                  [:span (get short-routes r) " - " (get long-routes r)]])
+  (if (not= (count short-routes) 0)
+    [:div
+     [:h2 "Choose a route "]
+     [:select {:on-change #(route-change (.. % -target -value)) }
+      (map (fn [r] [:option {:value r}
+                    [:span (get short-routes r) " - " (get long-routes r)]])
                         live-routes)]]
     [:div])
   ))
@@ -148,10 +152,25 @@
                  [:div])
      ))
 
+;;; produces the where-am-i component
+(defn where-am-i
+  []
+  (let [clicked (:where-am-i-clicked @state)]
+  [:div
+   [:div {:style {:text-align "center"}}
+   [:img {:src "static/Where_am_i_ok.png"
+          :on-click  (fn []
+                       (swap! state assoc-in
+                              [:where-am-i-clicked] (not clicked)))}] ]
+  (when clicked
+      [:div {:style {:text-align "center"}} [:h2 "X using GPS"] ])
+      ]))
+
 ;;; Uber component, contains/controls routes-view and lat-long-view.
 (defn uber
   []
   [:div
+   [:div [where-am-i]]
    [:div [routes-view]]
    [:div [lat-long-view]]
    ])
