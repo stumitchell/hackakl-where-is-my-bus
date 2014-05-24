@@ -56,7 +56,10 @@
                   :short-routes {}
                   :long-routes {}
                   :route nil
-                  :where-am-i-clicked false}))
+                  :where-am-i-clicked false
+                  :where-am-i-going-clicked false
+                  :destination nil
+                  :my-location nil}))
 
 ;;; Query to get positions corresponding to a route
 (defn q-positions [route_id]
@@ -153,7 +156,7 @@
      ))
 
 ;;; produces the where-am-i component
-(defn where-am-i
+(defn where-am-i-view
   []
   (let [clicked (:where-am-i-clicked @state)]
   [:div
@@ -163,16 +166,61 @@
                        (swap! state assoc-in
                               [:where-am-i-clicked] (not clicked)))}] ]
   (when clicked
-      [:div {:style {:text-align "center"}} [:h2 "X using GPS"] ])
+      [:div {:style {:text-align "center"}} [:span "X using GPS"] ])
       ]))
 
+;;;
+(defn convert-destination
+  [destination]
+  (swap! state assoc-in [:destination]
+         (read-str (str "[ " destination " ]")))
+  )
+
+;;; produces the where-am-i component
+(defn where-am-i-going-view
+  []
+  (let [clicked (:where-am-i-going-clicked @state)]
+  [:div
+   [:div {:style {:text-align "center"}}
+   [:img {:src "static/Where_am_i_going.png"
+          :on-click  (fn []
+                       (swap! state assoc-in
+                              [:where-am-i-going-clicked] (not clicked)))}] ]
+  (when clicked
+      [:div [:div {:style {:text-align "center"}}
+       [:span "Destination: "][:input {:type "text"
+               :value nil
+               :on-change #(swap! state assoc-in
+                                  [:destination :lat-long] (.. % -target -value))}]]
+      [:div {:style {:text-align "center"}}
+       [:span "Time: "][:input {:type "text"
+               :value nil
+               :on-change #(swap! state assoc-in
+                                  [:destination :time] (.. % -target -value))}]]
+      ;[:div {:style {:text-align "center"}}
+      ;  [:button
+      ;  {:onClick (fn []
+      ;              (swap! state assoc-in [:destination] {:time (:time @temp)}))}
+      ; "Add Destination"]]
+      ]
+      )
+    ]))
+
+;;; debug information
+(defn debug-view []
+  [:div
+   [:div [:span "my-location: "] [:span (pr-str (:my-location @state))]]
+   [:div [:span "destination: "][:span (pr-str (:destination @state))]]]
+  )
 ;;; Uber component, contains/controls routes-view and lat-long-view.
 (defn uber
   []
   [:div
-   [:div [where-am-i]]
+   [:div [where-am-i-view]]
+   [:div [where-am-i-going-view]]
    [:div [routes-view]]
    [:div [lat-long-view]]
+   [:div [debug-view]]
    ])
 
 ;;; Initial render
